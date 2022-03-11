@@ -1,0 +1,19 @@
+clusterScoped: false
+choUsername: "clickhouse_operator"
+secrets:
+  choPassword: "clickhouse_operator_password"
+
+cho:
+  registry: "docker.io"
+  image: "altinity/clickhouse-operator"
+  tag: ~
+  pullPolicy: IfNotPresent
+metricsExporter:
+  registry: "docker.io"
+  image: "altinity/metrics-exporter"
+  tag: ~
+  pullPolicy: IfNotPresent
+
+securityContext: {}
+
+additionalLabels: ~
