@@ -15,6 +15,9 @@ DST_DIR="${HELM_DIR}/${VERSION}"
 mkdir -p ${DST_DIR}
 
 # create chart structure
+TEMPLATES_DIR="${DST_DIR}/templates"
+mkdir -p ${TEMPLATES_DIR}
+
 cat <<EOF > "${DST_DIR}/Chart.yaml"
 apiVersion: v2
 name: clickhouse-operator
@@ -43,6 +46,8 @@ metricsExporter:
   pullPolicy: IfNotPresent
 
 securityContext: {}
+
+additionalLabels: ~
 EOF
 
 cat <<EOF > "${DST_DIR}/templates/_helpers.yaml"
@@ -64,6 +69,9 @@ helm.sh/chart: {{ include "clickhouse-operator.chart" . }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- if .Values.additionalLabels }}
+{{ toYaml .Values.additionalLabels }}
+{{- end }}
 {{- end }}
 
 {{/*
@@ -77,9 +85,6 @@ EOF
 
 
 ## Templates
-TEMPLATES_DIR="${DST_DIR}/templates"
-mkdir -p ${TEMPLATES_DIR}
-
 ## CRD's
 CHI="clickhouseinstallations.clickhouse.altinity.com"
 MANIFEST_PRINT_CRD="yes" \
