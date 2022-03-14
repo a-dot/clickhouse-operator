@@ -11,24 +11,45 @@ VERSION=$(cd "${SRC_ROOT}"; cat release)
 echo "VERSION: ${VERSION}"
 
 HELM_DIR="${SRC_ROOT}/deploy/helm"
-DST_DIR="${HELM_DIR}/${VERSION}"
-mkdir -p ${DST_DIR}
+VERSION_DIR="${HELM_DIR}/${VERSION}"
+DST_DIR_CHART_CRDS="${VERSION_DIR}/crds"
+DST_DIR_CHART="${VERSION_DIR}/operator"
+mkdir -p ${DST_DIR_CHART_CRDS}
+mkdir -p ${DST_DIR_CHART}
 
-# create chart structure
-TEMPLATES_DIR="${DST_DIR}/templates"
+# Create chart structure for CRDs
+TEMPLATES_DIR_CRDS="${DST_DIR_CHART_CRDS}/templates"
+mkdir -p ${TEMPLATES_DIR_CRDS}
+
+cat <<EOF > "${DST_DIR_CHART_CRDS}/Chart.yaml"
+apiVersion: v2
+name: clickhouse-operator-crds
+description: A Helm chart for clickhouse-operator-crds
+type: application
+version: ${VERSION}
+appVersion: ${VERSION}
+EOF
+
+
+# Create chart structure for Operator
+TEMPLATES_DIR="${DST_DIR_CHART}/templates"
 mkdir -p ${TEMPLATES_DIR}
 
-cat <<EOF > "${DST_DIR}/Chart.yaml"
+cat <<EOF > "${DST_DIR_CHART}/Chart.yaml"
 apiVersion: v2
 name: clickhouse-operator
 description: A Helm chart for clickhouse-operator
 type: application
 version: ${VERSION}
 appVersion: ${VERSION}
+dependencies:
+- name: clickhouse-operator-crds
+  version: "${VERSION}"
+  repository: "file://../crds"
 EOF
 
 ## values.yaml file
-cat <<EOF > "${DST_DIR}/values.yaml"
+cat <<EOF > "${DST_DIR_CHART}/values.yaml"
 clusterScoped: false
 choUsername: "clickhouse_operator"
 secrets:
@@ -50,7 +71,7 @@ securityContext: {}
 additionalLabels: ~
 EOF
 
-cat <<EOF > "${DST_DIR}/templates/_helpers.yaml"
+cat <<EOF > "${DST_DIR_CHART}/templates/_helpers.yaml"
 {{- define "clickhouse-operator.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
@@ -92,7 +113,7 @@ MANIFEST_PRINT_RBAC_CLUSTERED="no" \
 MANIFEST_PRINT_RBAC_NAMESPACED="no" \
 MANIFEST_PRINT_DEPLOYMENT="no" \
 MANIFEST_PRINT_SERVICE_METRICS="no" \
-"${CUR_DIR}/cat-clickhouse-operator-install-yaml.sh" | yq "select(.metadata.name == \"${CHI}\")" > "${TEMPLATES_DIR}/crd.${CHI}.yaml"
+"${CUR_DIR}/cat-clickhouse-operator-install-yaml.sh" | yq "select(.metadata.name == \"${CHI}\")" > "${TEMPLATES_DIR_CRDS}/crd.${CHI}.yaml"
 
 CHIT="clickhouseinstallationtemplates.clickhouse.altinity.com"
 MANIFEST_PRINT_CRD="yes" \
@@ -100,7 +121,7 @@ MANIFEST_PRINT_RBAC_CLUSTERED="no" \
 MANIFEST_PRINT_RBAC_NAMESPACED="no" \
 MANIFEST_PRINT_DEPLOYMENT="no" \
 MANIFEST_PRINT_SERVICE_METRICS="no" \
-"${CUR_DIR}/cat-clickhouse-operator-install-yaml.sh" | yq "select(.metadata.name == \"${CHIT}\")" > "${TEMPLATES_DIR}/crd.${CHIT}.yaml"
+"${CUR_DIR}/cat-clickhouse-operator-install-yaml.sh" | yq "select(.metadata.name == \"${CHIT}\")" > "${TEMPLATES_DIR_CRDS}/crd.${CHIT}.yaml"
 
 CHOCONF="clickhouseoperatorconfigurations.clickhouse.altinity.com"
 MANIFEST_PRINT_CRD="yes" \
@@ -108,7 +129,7 @@ MANIFEST_PRINT_RBAC_CLUSTERED="no" \
 MANIFEST_PRINT_RBAC_NAMESPACED="no" \
 MANIFEST_PRINT_DEPLOYMENT="no" \
 MANIFEST_PRINT_SERVICE_METRICS="no" \
-"${CUR_DIR}/cat-clickhouse-operator-install-yaml.sh" | yq "select(.metadata.name == \"${CHOCONF}\")" > "${TEMPLATES_DIR}/crd.${CHOCONF}.yaml"
+"${CUR_DIR}/cat-clickhouse-operator-install-yaml.sh" | yq "select(.metadata.name == \"${CHOCONF}\")" > "${TEMPLATES_DIR_CRDS}/crd.${CHOCONF}.yaml"
 
 LABELS="  labels:\n    {{- include \"clickhouse-operator.labels\" . | nindent 4 }}"
 
@@ -172,3 +193,5 @@ password_sha256_hex="\"{{ .Values.secrets.choPassword | sha256sum }}\"" \
 sed "s/^  labels:/$LABELS/g" |
 sed 's/"\({{[- ].*[- ]}}\)"/\1/' | sed "s/'\({{[- ].*[- ]}}\)'/\1/" > "${TEMPLATES_DIR}/configmaps.yaml"
 
+helm dependency update ${DST_DIR_CHART} > /dev/null
+helm package --destination ../helm ${DST_DIR_CHART}
