@@ -1,0 +1,6 @@
+dependencies:
+- name: clickhouse-operator-crds
+  repository: file://../crds
+  version: 0.18.3
+digest: sha256:080343bd5ef30d74f831788640443162c459c36a41860ab5b48fc77841edb318
+generated: "2022-03-14T13:54:56.479596-04:00"
