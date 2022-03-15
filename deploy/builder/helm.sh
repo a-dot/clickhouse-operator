@@ -51,9 +51,9 @@ EOF
 ## values.yaml file
 cat <<EOF > "${DST_DIR_CHART}/values.yaml"
 clusterScoped: false
+
 choUsername: "clickhouse_operator"
-secrets:
-  choPassword: "clickhouse_operator_password"
+choPassword: "clickhouse_operator_password"
 
 cho:
   registry: "docker.io"
@@ -144,11 +144,13 @@ sed 's/"\({{[- ].*[- ]}}\)"/\1/' | sed "s/'\({{[- ].*[- ]}}\)'/\1/" > "${TEMPLAT
 
 ## RoleBinding
 KIND="{{- if .Values.clusterScoped }}\nkind: ClusterRoleBinding\n{{- else }}\nkind: RoleBinding\n{{- end }}"
+KKIND="{{- if .Values.clusterScoped }}\n  kind: ClusterRole\n{{- else }}\n  kind: Role\n{{- end }}"
 MANIFEST_PRINT_RBAC_NAMESPACED="yes" \
 OPERATOR_NAMESPACE="\"{{ .Release.Namespace }}\"" \
 "${CUR_DIR}/cat-clickhouse-operator-install-yaml.sh" | yq 'select(.kind == "RoleBinding")' | 
 sed "s/^  labels:/$LABELS/g" |
 sed "s/^kind: .*$/$KIND/g" |
+sed "s/  kind: .*$/$KKIND/g" | 
 awk 'NR==1,/  namespace: "{{ .Release.Namespace }}"/{sub(/  namespace: "{{ .Release.Namespace }}"/, "{{- if not .Values.clusterScoped }}\n  namespace: {{ .Release.Namespace }}\n{{- end }}")} 1' |
 sed 's/"\({{[- ].*[- ]}}\)"/\1/' | sed "s/'\({{[- ].*[- ]}}\)'/\1/" > "${TEMPLATES_DIR}/role_binding.yaml"
 
@@ -185,13 +187,16 @@ echo "        {{- toYaml .Values.securityContext | nindent 8 }}" >> "${TEMPLATES
 
 ## Configmaps
 OPERATOR_NAMESPACE="\"{{ .Release.Namespace }}\"" \
-watchNamespaces="\"{{ .Release.Namespace | quote }}\"" \
-chUsername="\"{{ .Values.choUsername }}\"" \
-chPassword="\"{{ .Values.secrets.choPassword }}\"" \
-password_sha256_hex="\"{{ .Values.secrets.choPassword | sha256sum }}\"" \
+watchNamespaces="{{ .Release.Namespace | quote }}" \
+chUsername="{{ .Values.choUsername | quote }}" \
+chPassword="{{ .Values.choPassword | quote }}" \
+password_sha256_hex="{{ .Values.choPassword | sha256sum }}" \
 "${CUR_DIR}/cat-clickhouse-operator-install-yaml.sh" | yq "select(.kind == \"ConfigMap\")" | \
 sed "s/^  labels:/$LABELS/g" |
 sed 's/"\({{[- ].*[- ]}}\)"/\1/' | sed "s/'\({{[- ].*[- ]}}\)'/\1/" > "${TEMPLATES_DIR}/configmaps.yaml"
 
+## package the chart
 helm dependency update ${DST_DIR_CHART} > /dev/null
 helm package --destination ../helm ${DST_DIR_CHART}
+
+
