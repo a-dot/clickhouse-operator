@@ -50,12 +50,17 @@ EOF
 
 ## values.yaml file
 cat <<EOF > "${DST_DIR_CHART}/values.yaml"
-clusterScoped: false
+clusterScoped: true
 
-choUsername: "clickhouse_operator"
-choPassword: "clickhouse_operator_password"
-choSecretName: ""
-choSecretNamespace: ""
+# Choose between setting the username/password here or as a Secret
+choUsername: ""
+choPassword: ""
+
+# Choose between setting the username/password as a Secret here or otherwise specify it above
+choSecretName: "clickhouse-operator"
+choSecretNamespace: "{{ .Release.Namespace }}"
+
+# Specify Namespaces where clickhouse-operator will be monitoring for new ClickHouseInstallations
 watchNamespaces:
   - default
 
@@ -63,15 +68,16 @@ cho:
   registry: "docker.io"
   image: "altinity/clickhouse-operator"
   tag: ~
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
 metricsExporter:
   registry: "docker.io"
   image: "altinity/metrics-exporter"
   tag: ~
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
 
 securityContext: {}
 
+# Labels that will be applied to all resources
 additionalLabels: ~
 EOF
 
@@ -198,12 +204,13 @@ password_sha256_hex="{{ .Values.choPassword | sha256sum }}" \
 "${CUR_DIR}/cat-clickhouse-operator-install-yaml.sh" | yq "select(.kind == \"ConfigMap\")" | \
 sed "s/^  labels:/$LABELS/g" |
 sed "s/^      namespaces: \[\]/      namespaces: {{ toJson .Values.watchNamespaces }}/g" | 
-sed "s/^          namespace: \"\"$/          namespace: {{ .Values.choSecretNamespace | quote }}/g" |
+sed "s/^          namespace: \"\"$/          namespace: {{ if .Values.choSecretName -}} {{ tpl .Values.choSecretNamespace . | quote }} {{- else -}} \"\" {{- end }}/g" |
 sed "s/^          name: \"\"$/          name: {{ .Values.choSecretName | quote }}/g" |
 sed 's/"\({{[- ].*[- ]}}\)"/\1/' | sed "s/'\({{[- ].*[- ]}}\)'/\1/" > "${TEMPLATES_DIR}/configmaps.yaml"
 
 ## Secret for cho password
 cat <<EOF > "${TEMPLATES_DIR}/secret_cho.yaml"
+{{- if .Values.choSecretName }}
 apiVersion: v1
 kind: Secret
 metadata:
@@ -212,6 +219,7 @@ metadata:
 type: Opaque
 data:
   clickhouse-operator: {{ randAlphaNum 16 | b64enc }}
+{{- end }}
 EOF
 
 
