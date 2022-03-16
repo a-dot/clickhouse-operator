@@ -54,6 +54,10 @@ clusterScoped: false
 
 choUsername: "clickhouse_operator"
 choPassword: "clickhouse_operator_password"
+choSecretName: ""
+choSecretNamespace: ""
+watchNamespaces:
+  - default
 
 cho:
   registry: "docker.io"
@@ -186,14 +190,30 @@ echo "      securityContext:" >> "${TEMPLATES_DIR}/deployment.yaml"
 echo "        {{- toYaml .Values.securityContext | nindent 8 }}" >> "${TEMPLATES_DIR}/deployment.yaml"
 
 ## Configmaps
+#watchNamespaces="{{ toJson .Values.watchNamespaces }}" \
 OPERATOR_NAMESPACE="\"{{ .Release.Namespace }}\"" \
-watchNamespaces="{{ .Release.Namespace | quote }}" \
 chUsername="{{ .Values.choUsername | quote }}" \
 chPassword="{{ .Values.choPassword | quote }}" \
 password_sha256_hex="{{ .Values.choPassword | sha256sum }}" \
 "${CUR_DIR}/cat-clickhouse-operator-install-yaml.sh" | yq "select(.kind == \"ConfigMap\")" | \
 sed "s/^  labels:/$LABELS/g" |
+sed "s/^      namespaces: \[\]/      namespaces: {{ toJson .Values.watchNamespaces }}/g" | 
+sed "s/^          namespace: \"\"$/          namespace: {{ .Values.choSecretNamespace | quote }}/g" |
+sed "s/^          name: \"\"$/          name: {{ .Values.choSecretName | quote }}/g" |
 sed 's/"\({{[- ].*[- ]}}\)"/\1/' | sed "s/'\({{[- ].*[- ]}}\)'/\1/" > "${TEMPLATES_DIR}/configmaps.yaml"
+
+## Secret for cho password
+cat <<EOF > "${TEMPLATES_DIR}/secret_cho.yaml"
+apiVersion: v1
+kind: Secret
+metadata:
+  name: clickhouse-operator
+  namespace: {{ .Release.Namespace }}
+type: Opaque
+data:
+  clickhouse-operator: {{ randAlphaNum 16 | b64enc }}
+EOF
+
 
 ## package the chart
 helm dependency update ${DST_DIR_CHART} > /dev/null
