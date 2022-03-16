@@ -149,14 +149,9 @@ sed "s/^kind: Role$/kind: ClusterRole/g" |
 sed 's/"\({{[- ].*[- ]}}\)"/\1/' | sed "s/'\({{[- ].*[- ]}}\)'/\1/" > "${TEMPLATES_DIR}/role.yaml"
 
 ## RoleBinding
-#KIND="{{- if .Values.clusterScoped }}\nkind: ClusterRoleBinding\n{{- else }}\nkind: RoleBinding\n{{- end }}"
-#KKIND="{{- if .Values.clusterScoped }}\n  kind: ClusterRole\n{{- else }}\n  kind: Role\n{{- end }}"
 MANIFEST_PRINT_RBAC_NAMESPACED="yes" \
 OPERATOR_NAMESPACE="\"{{ $.Release.Namespace }}\"" \
 "${CUR_DIR}/cat-clickhouse-operator-install-yaml.sh" | yq 'select(.kind == "RoleBinding") | .metadata.namespace = "{{ $ns }}" | .roleRef.kind = "ClusterRole"' | 
-#sed "s/^kind: .*$/$KIND/g" |
-#sed "s/  kind: .*$/$KKIND/g" | 
-#awk 'NR==1,/  namespace: "{{ .Release.Namespace }}"/{sub(/  namespace: "{{ .Release.Namespace }}"/, "{{- if not .Values.clusterScoped }}\n  namespace: {{ .Release.Namespace }}\n{{- end }}")} 1' |
 sed 's/"\({{[- ].*[- ]}}\)"/\1/' | sed "s/'\({{[- ].*[- ]}}\)'/\1/" > tmp
 cat <<EOF > "${TEMPLATES_DIR}/role_binding.yaml"
 {{- \$i := len .Values.watchNamespaces }}
@@ -175,7 +170,6 @@ MANIFEST_PRINT_DEPLOYMENT="no" \
 OPERATOR_NAMESPACE="\"{{ .Release.Namespace }}\"" \
 "${CUR_DIR}/cat-clickhouse-operator-install-yaml.sh" | yq 'select(.kind == "ServiceAccount")' | 
 sed "s/^  labels:/$LABELS/g" |
-awk 'NR==1,/  namespace: "{{ .Release.Namespace }}"/{sub(/  namespace: "{{ .Release.Namespace }}"/, "{{- if not .Values.clusterScoped }}\n  namespace: {{ .Release.Namespace }}\n{{- end }}")} 1' |
 sed 's/"\({{[- ].*[- ]}}\)"/\1/' | sed "s/'\({{[- ].*[- ]}}\)'/\1/" > "${TEMPLATES_DIR}/service_account.yaml"
 
 ## Service
