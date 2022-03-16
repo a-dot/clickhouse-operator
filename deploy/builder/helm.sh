@@ -50,8 +50,6 @@ EOF
 
 ## values.yaml file
 cat <<EOF > "${DST_DIR_CHART}/values.yaml"
-clusterScoped: true
-
 # Choose between setting the username/password here or as a Secret
 choUsername: ""
 choPassword: ""
@@ -143,26 +141,32 @@ MANIFEST_PRINT_SERVICE_METRICS="no" \
 
 LABELS="  labels:\n    {{- include \"clickhouse-operator.labels\" . | nindent 4 }}"
 
-## Role
-KIND="{{- if .Values.clusterScoped }}\nkind: ClusterRole\n{{- else }}\nkind: Role\n{{- end }}"
+## ClusterRole
 MANIFEST_PRINT_RBAC_NAMESPACED="yes" \
 OPERATOR_NAMESPACE="\"{{ .Release.Namespace }}\"" \
 "${CUR_DIR}/cat-clickhouse-operator-install-yaml.sh" | yq 'select(.kind == "Role")' | 
 sed "s/^  labels:/$LABELS/g" |
-sed "s/^kind: .*$/$KIND/g" |
+sed "s/^kind: Role$/kind: ClusterRole/g" |
 sed 's/"\({{[- ].*[- ]}}\)"/\1/' | sed "s/'\({{[- ].*[- ]}}\)'/\1/" > "${TEMPLATES_DIR}/role.yaml"
 
 ## RoleBinding
-KIND="{{- if .Values.clusterScoped }}\nkind: ClusterRoleBinding\n{{- else }}\nkind: RoleBinding\n{{- end }}"
-KKIND="{{- if .Values.clusterScoped }}\n  kind: ClusterRole\n{{- else }}\n  kind: Role\n{{- end }}"
+#KIND="{{- if .Values.clusterScoped }}\nkind: ClusterRoleBinding\n{{- else }}\nkind: RoleBinding\n{{- end }}"
+#KKIND="{{- if .Values.clusterScoped }}\n  kind: ClusterRole\n{{- else }}\n  kind: Role\n{{- end }}"
 MANIFEST_PRINT_RBAC_NAMESPACED="yes" \
-OPERATOR_NAMESPACE="\"{{ .Release.Namespace }}\"" \
-"${CUR_DIR}/cat-clickhouse-operator-install-yaml.sh" | yq 'select(.kind == "RoleBinding")' | 
-sed "s/^  labels:/$LABELS/g" |
-sed "s/^kind: .*$/$KIND/g" |
-sed "s/  kind: .*$/$KKIND/g" | 
-awk 'NR==1,/  namespace: "{{ .Release.Namespace }}"/{sub(/  namespace: "{{ .Release.Namespace }}"/, "{{- if not .Values.clusterScoped }}\n  namespace: {{ .Release.Namespace }}\n{{- end }}")} 1' |
-sed 's/"\({{[- ].*[- ]}}\)"/\1/' | sed "s/'\({{[- ].*[- ]}}\)'/\1/" > "${TEMPLATES_DIR}/role_binding.yaml"
+OPERATOR_NAMESPACE="\"{{ $.Release.Namespace }}\"" \
+"${CUR_DIR}/cat-clickhouse-operator-install-yaml.sh" | yq 'select(.kind == "RoleBinding") | .metadata.namespace = "{{ $ns }}" | .roleRef.kind = "ClusterRole"' | 
+#sed "s/^kind: .*$/$KIND/g" |
+#sed "s/  kind: .*$/$KKIND/g" | 
+#awk 'NR==1,/  namespace: "{{ .Release.Namespace }}"/{sub(/  namespace: "{{ .Release.Namespace }}"/, "{{- if not .Values.clusterScoped }}\n  namespace: {{ .Release.Namespace }}\n{{- end }}")} 1' |
+sed 's/"\({{[- ].*[- ]}}\)"/\1/' | sed "s/'\({{[- ].*[- ]}}\)'/\1/" > tmp
+cat <<EOF > "${TEMPLATES_DIR}/role_binding.yaml"
+{{- \$i := len .Values.watchNamespaces }}
+{{- range \$_, \$ns := .Values.watchNamespaces }}
+`cat tmp`
+{{ ne (\$i = sub \$i 1) 0 | ternary "---" "" }}
+{{- end }}
+EOF
+rm tmp
 
 ## RBAC / ServiceAccount
 MANIFEST_PRINT_SERVICE_METRICS="no" \
