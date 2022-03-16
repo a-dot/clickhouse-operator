@@ -59,8 +59,7 @@ choSecretName: "clickhouse-operator"
 choSecretNamespace: "{{ .Release.Namespace }}"
 
 # Specify Namespaces where clickhouse-operator will be monitoring for new ClickHouseInstallations
-watchNamespaces:
-  - default
+watchNamespaces: []
 
 cho:
   registry: "docker.io"
