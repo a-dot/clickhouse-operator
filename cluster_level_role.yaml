@@ -9,15 +9,6 @@ rules:
       - clickhouse.altinity.com
     resources:
       - clickhouseinstallations
-    verbs:
-      - get
-      - patch
-      - update
-      - delete
-  - apiGroups:
-      - clickhouse.altinity.com
-    resources:
-      - clickhouseinstallations
       - clickhouseinstallationtemplates
       - clickhouseoperatorconfigurations
     verbs:
@@ -27,40 +18,20 @@ rules:
   - apiGroups:
       - clickhouse.altinity.com
     resources:
-      - clickhouseinstallations/finalizers
-      - clickhouseinstallationtemplates/finalizers
-      - clickhouseoperatorconfigurations/finalizers
-    verbs:
-      - update
-  - apiGroups:
-      - clickhouse.altinity.com
-    resources:
       - clickhouseinstallations/status
       - clickhouseinstallationtemplates/status
       - clickhouseoperatorconfigurations/status
     verbs:
       - get
-      - update
-      - patch
-      - create
-      - delete
   - apiGroups:
       - ""
     resources:
       - configmaps
       - services
-    verbs:
-      - get
-      - list
-      - patch
-      - update
-      - watch
-      - create
-      - delete
-  - apiGroups:
-      - ""
-    resources:
       - endpoints
+      - pods
+      - persistentvolumes
+      - persistentvolumeclaims
     verbs:
       - get
       - list
@@ -72,33 +43,7 @@ rules:
     verbs:
       - get
       - list
-      - patch
-      - update
       - watch
-      - create
-      - delete
-  - apiGroups:
-      - ""
-    resources:
-      - pods
-      - persistentvolumes
-    verbs:
-      - get
-      - list
-      - patch
-      - update
-      - watch
-  - apiGroups:
-      - ""
-    resources:
-      - persistentvolumeclaims
-    verbs:
-      - get
-      - list
-      - patch
-      - update
-      - watch
-      - delete
   - apiGroups:
       - apiextensions.k8s.io
     resources:
