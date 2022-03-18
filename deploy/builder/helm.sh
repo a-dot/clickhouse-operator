@@ -162,6 +162,63 @@ sed "s/^  labels:/$LABELS/g" |
 sed "s/^kind: Role$/kind: ClusterRole/g" |
 sed 's/"\({{[- ].*[- ]}}\)"/\1/' | sed "s/'\({{[- ].*[- ]}}\)'/\1/" > "${TEMPLATES_DIR}/role.yaml"
 
+## minimal clusterrole
+cat <<EOF > "${TEMPLATES_DIR}/role_minimal.yaml"
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: clickhouse-operator-minimal
+  labels:
+    clickhouse.altinity.com/chop: ${VERSION}
+rules:
+  - apiGroups:
+      - clickhouse.altinity.com
+    resources:
+      - clickhouseinstallations
+      - clickhouseinstallationtemplates
+      - clickhouseoperatorconfigurations
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - clickhouse.altinity.com
+    resources:
+      - clickhouseinstallations/status
+      - clickhouseinstallationtemplates/status
+      - clickhouseoperatorconfigurations/status
+    verbs:
+      - get
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+      - services
+      - endpoints
+      - pods
+      - persistentvolumes
+      - persistentvolumeclaims
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - apps
+    resources:
+      - statefulsets
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - apiextensions.k8s.io
+    resources:
+      - customresourcedefinitions
+    verbs:
+      - get
+      - list
+EOF
+
 ## RoleBinding
 ## cho's namespace
 MANIFEST_PRINT_RBAC_NAMESPACED="yes" \
@@ -182,6 +239,24 @@ cat <<EOF > "${TEMPLATES_DIR}/role_binding_watched_ns.yaml"
 {{- end }}
 EOF
 rm tmp
+
+## clusterrolebinding for minimal
+cat <<EOF > "${TEMPLATES_DIR}/role_binding_minimal.yaml"
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: clickhouse-operator
+  labels:
+    clickhouse.altinity.com/chop: ${VERSION}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: clickhouse-operator-minimal
+subjects:
+  - kind: ServiceAccount
+    name: clickhouse-operator
+    namespace: clickhouse-operator
+EOF
 
 ## RBAC / ServiceAccount
 MANIFEST_PRINT_SERVICE_METRICS="no" \
