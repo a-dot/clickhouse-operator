@@ -76,6 +76,8 @@ securityContext: {}
 
 # Labels that will be applied to all resources
 additionalLabels: ~
+
+deploymentAnnotations: {}
 EOF
 
 cat <<EOF > "${DST_DIR_CHART}/templates/_helpers.yaml"
@@ -109,6 +111,18 @@ Selector labels
 app.kubernetes.io/name: {{ include "clickhouse-operator.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
+
+{{/*
+Clickhouse-operator secret generation
+*/}}
+{{- define "clickhouse-operator.secret" -}}
+{{- \$secret := lookup "v1" "Secret" .Release.Namespace "clickhouse-operator" -}}
+{{- if \$secret -}}
+clickhouse-operator: {{ index \$secret.data "clickhouse-operator" }}
+{{- else -}}
+clickhouse-operator: {{ randAlphaNum 16 | b64enc }}
+{{- end -}}
+{{- end -}}
 EOF
 
 
@@ -149,11 +163,18 @@ sed "s/^kind: Role$/kind: ClusterRole/g" |
 sed 's/"\({{[- ].*[- ]}}\)"/\1/' | sed "s/'\({{[- ].*[- ]}}\)'/\1/" > "${TEMPLATES_DIR}/role.yaml"
 
 ## RoleBinding
+## cho's namespace
+MANIFEST_PRINT_RBAC_NAMESPACED="yes" \
+OPERATOR_NAMESPACE="\"{{ .Release.Namespace }}\"" \
+"${CUR_DIR}/cat-clickhouse-operator-install-yaml.sh" | yq 'select(.kind == "RoleBinding") | .roleRef.kind = "ClusterRole"' | 
+sed 's/"\({{[- ].*[- ]}}\)"/\1/' | sed "s/'\({{[- ].*[- ]}}\)'/\1/" > "${TEMPLATES_DIR}/role_binding.yaml"
+
+## per namespace
 MANIFEST_PRINT_RBAC_NAMESPACED="yes" \
 OPERATOR_NAMESPACE="\"{{ $.Release.Namespace }}\"" \
 "${CUR_DIR}/cat-clickhouse-operator-install-yaml.sh" | yq 'select(.kind == "RoleBinding") | .metadata.namespace = "{{ $ns }}" | .roleRef.kind = "ClusterRole"' | 
 sed 's/"\({{[- ].*[- ]}}\)"/\1/' | sed "s/'\({{[- ].*[- ]}}\)'/\1/" > tmp
-cat <<EOF > "${TEMPLATES_DIR}/role_binding.yaml"
+cat <<EOF > "${TEMPLATES_DIR}/role_binding_watched_ns.yaml"
 {{- \$i := len .Values.watchNamespaces }}
 {{- range \$_, \$ns := .Values.watchNamespaces }}
 `cat tmp`
@@ -187,6 +208,7 @@ yq '.spec.template.spec.containers[0].image |= "{{ .Values.cho.registry }}/{{ .V
 yq '.spec.template.spec.containers[0].imagePullPolicy |= "{{ .Values.cho.pullPolicy }}"' | \
 yq '.spec.template.spec.containers[1].image |= "{{ .Values.metricsExporter.registry }}/{{ .Values.metricsExporter.image }}:{{ .Values.metricsExporter.tag | default .Chart.AppVersion }}"' | \
 yq '.spec.template.spec.containers[1].imagePullPolicy |= "{{ .Values.metricsExporter.pullPolicy }}"' | \
+sed 's/^metadata:/metadata:\n  {{- with .Values.deploymentAnnotations }}\n  annotations:\n    {{- toYaml . | nindent 4 }}\n  {{- end }}/g' |
 sed "s/^  labels:/$LABELS/g" |
 sed 's/"\({{[- ].*[- ]}}\)"/\1/' | sed "s/'\({{[- ].*[- ]}}\)'/\1/" > "${TEMPLATES_DIR}/deployment.yaml"
 echo "      securityContext:" >> "${TEMPLATES_DIR}/deployment.yaml"
@@ -215,7 +237,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
 type: Opaque
 data:
-  clickhouse-operator: {{ randAlphaNum 16 | b64enc }}
+{{- include "clickhouse-operator.secret" . | nindent 2 -}}
 {{- end }}
 EOF
 
